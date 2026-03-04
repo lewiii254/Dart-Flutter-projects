@@ -25,13 +25,6 @@ Dart/
 └── shared_packages/
 ```
 
-## Suggested Standards for New Projects
-
-- Use clear project names (lowercase with underscores)
-- Include a dedicated `README.md` in each project
-- Use linting and tests from day one
-- Keep each project independently runnable
-
 ## Reusable Workflow
 
 For each project:
@@ -44,23 +37,7 @@ flutter test
 flutter run
 ```
 
-## GitHub Strategy
-
-You can choose one of two approaches:
-
-1. **One repo per project** (recommended for portfolio clarity)
-2. **Monorepo for all projects** (recommended for shared tooling)
-
-### Option A: One repo per project
-
-- Each project folder is initialized and pushed separately
-- Best for showcasing focused work
-
-### Option B: Monorepo
-
-- Initialize git at `Dart/`
-- Keep project folders as subdirectories
-- Useful when projects share scripts or packages
+----
 
 ## Mermaid Overview
 
