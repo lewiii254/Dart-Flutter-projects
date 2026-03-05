@@ -17,12 +17,25 @@ class TaskProvider extends ChangeNotifier {
   List<TodoTask> get tasks => List.unmodifiable(_tasks);
   int get completedCount => _tasks.where((task) => task.isCompleted).length;
   int get pendingCount => _tasks.where((task) => !task.isCompleted).length;
+  int get overdueCount => _tasks.where((task) => task.isOverdue).length;
 
-  Future<void> addTask(String title, TaskPriority priority) async {
+  double get completionRatio {
+    if (_tasks.isEmpty) {
+      return 0;
+    }
+    return completedCount / _tasks.length;
+  }
+
+  Future<void> addTask(
+    String title,
+    TaskPriority priority, {
+    DateTime? dueDate,
+  }) async {
     final task = TodoTask(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       title: title,
       priority: priority,
+      dueDate: dueDate,
     );
     _tasks.insert(0, task);
     notifyListeners();
@@ -33,13 +46,20 @@ class TaskProvider extends ChangeNotifier {
     required String id,
     required String title,
     required TaskPriority priority,
+    DateTime? dueDate,
+    bool clearDueDate = false,
   }) async {
     final index = _tasks.indexWhere((task) => task.id == id);
     if (index == -1) {
       return;
     }
 
-    _tasks[index] = _tasks[index].copyWith(title: title, priority: priority);
+    _tasks[index] = _tasks[index].copyWith(
+      title: title,
+      priority: priority,
+      dueDate: dueDate,
+      clearDueDate: clearDueDate,
+    );
     notifyListeners();
     await _saveTasks();
   }
@@ -61,8 +81,22 @@ class TaskProvider extends ChangeNotifier {
     await _saveTasks();
   }
 
+  Future<void> restoreTask(TodoTask task) async {
+    _tasks.insert(0, task);
+    notifyListeners();
+    await _saveTasks();
+  }
+
   Future<void> clearCompleted() async {
     _tasks.removeWhere((task) => task.isCompleted);
+    notifyListeners();
+    await _saveTasks();
+  }
+
+  Future<void> markAllAsCompleted() async {
+    for (var index = 0; index < _tasks.length; index++) {
+      _tasks[index] = _tasks[index].copyWith(isCompleted: true);
+    }
     notifyListeners();
     await _saveTasks();
   }

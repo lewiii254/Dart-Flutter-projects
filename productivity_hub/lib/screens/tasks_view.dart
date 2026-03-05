@@ -18,6 +18,7 @@ class _TasksViewState extends State<TasksView> {
   final TextEditingController _searchController = TextEditingController();
   TaskFilter _filter = TaskFilter.all;
   TaskPriority? _priorityFilter;
+  bool _showOverdueOnly = false;
 
   @override
   void dispose() {
@@ -39,6 +40,10 @@ class _TasksViewState extends State<TasksView> {
           result.where((task) => task.priority == _priorityFilter).toList();
     }
 
+    if (_showOverdueOnly) {
+      result = result.where((task) => task.isOverdue).toList();
+    }
+
     final query = _searchController.text.trim().toLowerCase();
     if (query.isNotEmpty) {
       result = result
@@ -56,9 +61,29 @@ class _TasksViewState extends State<TasksView> {
     return result;
   }
 
+  Future<DateTime?> _pickDueDate(
+      BuildContext context, DateTime? initial) async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initial ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    return pickedDate;
+  }
+
+  String _formatDate(DateTime date) {
+    final localDate = date.toLocal();
+    final month = localDate.month.toString().padLeft(2, '0');
+    final day = localDate.day.toString().padLeft(2, '0');
+    return '$month/$day/${localDate.year}';
+  }
+
   Future<void> _showEditTaskDialog(BuildContext context, TodoTask task) async {
     final titleController = TextEditingController(text: task.title);
     TaskPriority selectedPriority = task.priority;
+    DateTime? selectedDueDate = task.dueDate;
 
     await showDialog<void>(
       context: context,
@@ -67,36 +92,74 @@ class _TasksViewState extends State<TasksView> {
           builder: (context, setLocalState) {
             return AlertDialog(
               title: const Text('Edit Task'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(labelText: 'Task title'),
-                    autofocus: true,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<TaskPriority>(
-                    initialValue: selectedPriority,
-                    decoration: const InputDecoration(labelText: 'Priority'),
-                    items: const [
-                      DropdownMenuItem(
-                          value: TaskPriority.low, child: Text('Low')),
-                      DropdownMenuItem(
-                          value: TaskPriority.medium, child: Text('Medium')),
-                      DropdownMenuItem(
-                          value: TaskPriority.high, child: Text('High')),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setLocalState(() {
-                        selectedPriority = value;
-                      });
-                    },
-                  ),
-                ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration:
+                          const InputDecoration(labelText: 'Task title'),
+                      autofocus: true,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<TaskPriority>(
+                      initialValue: selectedPriority,
+                      decoration: const InputDecoration(labelText: 'Priority'),
+                      items: const [
+                        DropdownMenuItem(
+                            value: TaskPriority.low, child: Text('Low')),
+                        DropdownMenuItem(
+                            value: TaskPriority.medium, child: Text('Medium')),
+                        DropdownMenuItem(
+                            value: TaskPriority.high, child: Text('High')),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setLocalState(() {
+                          selectedPriority = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            selectedDueDate == null
+                                ? 'No due date'
+                                : 'Due: ${_formatDate(selectedDueDate!)}',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final pickedDate =
+                                await _pickDueDate(context, selectedDueDate);
+                            if (pickedDate == null) {
+                              return;
+                            }
+                            setLocalState(() {
+                              selectedDueDate = pickedDate;
+                            });
+                          },
+                          child: const Text('Pick date'),
+                        ),
+                        if (selectedDueDate != null)
+                          IconButton(
+                            onPressed: () {
+                              setLocalState(() {
+                                selectedDueDate = null;
+                              });
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                            tooltip: 'Clear due date',
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -113,6 +176,8 @@ class _TasksViewState extends State<TasksView> {
                           id: task.id,
                           title: updatedTitle,
                           priority: selectedPriority,
+                          dueDate: selectedDueDate,
+                          clearDueDate: selectedDueDate == null,
                         );
                     if (context.mounted) {
                       Navigator.of(dialogContext).pop();
@@ -223,6 +288,16 @@ class _TasksViewState extends State<TasksView> {
                             });
                           },
                         ),
+                        const SizedBox(width: 6),
+                        FilterChip(
+                          label: const Text('Overdue'),
+                          selected: _showOverdueOnly,
+                          onSelected: (_) {
+                            setState(() {
+                              _showOverdueOnly = !_showOverdueOnly;
+                            });
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -236,7 +311,18 @@ class _TasksViewState extends State<TasksView> {
                   Chip(label: Text('Pending: ${taskProvider.pendingCount}')),
                   const SizedBox(width: 8),
                   Chip(label: Text('Done: ${taskProvider.completedCount}')),
+                  const SizedBox(width: 8),
+                  Chip(label: Text('Overdue: ${taskProvider.overdueCount}')),
                   const Spacer(),
+                  TextButton.icon(
+                    onPressed: taskProvider.pendingCount == 0
+                        ? null
+                        : () {
+                            taskProvider.markAllAsCompleted();
+                          },
+                    icon: const Icon(Icons.done_all_rounded),
+                    label: const Text('Done all'),
+                  ),
                   TextButton.icon(
                     onPressed: taskProvider.completedCount == 0
                         ? null
@@ -291,10 +377,7 @@ class _TasksViewState extends State<TasksView> {
                                     action: SnackBarAction(
                                       label: 'Undo',
                                       onPressed: () {
-                                        taskProvider.addTask(
-                                          removedTask.title,
-                                          removedTask.priority,
-                                        );
+                                        taskProvider.restoreTask(removedTask);
                                       },
                                     ),
                                   ),

@@ -29,11 +29,23 @@ class NoteCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                note.title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      note.title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
+                  ),
+                  if (note.isPinned)
+                    Icon(
+                      Icons.push_pin_rounded,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/todo_task.dart';
 import '../providers/note_provider.dart';
+import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import 'notes_view.dart';
 import 'tasks_view.dart';
@@ -16,6 +17,25 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+
+  Future<DateTime?> _pickDueDate(
+      BuildContext context, DateTime? initial) async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initial ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    return pickedDate;
+  }
+
+  String _formatDate(DateTime date) {
+    final localDate = date.toLocal();
+    final month = localDate.month.toString().padLeft(2, '0');
+    final day = localDate.day.toString().padLeft(2, '0');
+    return '$month/$day/${localDate.year}';
+  }
 
   String get _todayLabel {
     final now = DateTime.now();
@@ -79,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _showAddTaskDialog() async {
     final titleController = TextEditingController();
     TaskPriority selectedPriority = TaskPriority.medium;
+    DateTime? selectedDueDate;
 
     await showDialog<void>(
       context: context,
@@ -124,6 +145,41 @@ class _HomeScreenState extends State<HomeScreen> {
                         });
                       },
                     ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            selectedDueDate == null
+                                ? 'No due date'
+                                : 'Due: ${_formatDate(selectedDueDate!)}',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final pickedDate =
+                                await _pickDueDate(context, selectedDueDate);
+                            if (pickedDate == null) {
+                              return;
+                            }
+                            setLocalState(() {
+                              selectedDueDate = pickedDate;
+                            });
+                          },
+                          child: const Text('Pick date'),
+                        ),
+                        if (selectedDueDate != null)
+                          IconButton(
+                            onPressed: () {
+                              setLocalState(() {
+                                selectedDueDate = null;
+                              });
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                            tooltip: 'Clear due date',
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -139,7 +195,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       return;
                     }
                     final taskProvider = context.read<TaskProvider>();
-                    await taskProvider.addTask(title, selectedPriority);
+                    await taskProvider.addTask(
+                      title,
+                      selectedPriority,
+                      dueDate: selectedDueDate,
+                    );
                     if (dialogContext.mounted) {
                       Navigator.of(dialogContext).pop();
                     }
@@ -224,6 +284,10 @@ class _HomeScreenState extends State<HomeScreen> {
       'Collect your ideas and thoughts'
     ];
 
+    final taskProvider = context.watch<TaskProvider>();
+    final noteProvider = context.watch<NoteProvider>();
+    final completionPercent = (taskProvider.completionRatio * 100).round();
+
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 84,
@@ -236,6 +300,22 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(_todayLabel, style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
+        actions: [
+          Consumer<SettingsProvider>(
+            builder: (context, settingsProvider, _) {
+              return IconButton(
+                onPressed: settingsProvider.toggleThemeMode,
+                tooltip: settingsProvider.isDarkMode
+                    ? 'Switch to light mode'
+                    : 'Switch to dark mode',
+                icon: Icon(settingsProvider.isDarkMode
+                    ? Icons.light_mode_outlined
+                    : Icons.dark_mode_outlined),
+              );
+            },
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: Column(
         children: [
@@ -250,7 +330,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 title: Text(titles[_currentIndex],
                     style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: Text(subtitles[_currentIndex]),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(subtitles[_currentIndex]),
+                    const SizedBox(height: 6),
+                    if (_currentIndex == 0) ...[
+                      LinearProgressIndicator(
+                        value: taskProvider.completionRatio,
+                        minHeight: 6,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$completionPercent% complete • ${taskProvider.overdueCount} overdue',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ] else ...[
+                      Text(
+                        '${noteProvider.totalNotes} notes • ${noteProvider.pinnedCount} pinned',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ]
+                  ],
+                ),
               ),
             ),
           ),

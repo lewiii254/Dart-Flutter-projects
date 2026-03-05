@@ -4,24 +4,28 @@ class Note {
     required this.title,
     required this.content,
     required this.timestamp,
+    this.isPinned = false,
   });
 
   final String id;
   final String title;
   final String content;
   final DateTime timestamp;
+  final bool isPinned;
 
   Note copyWith({
     String? id,
     String? title,
     String? content,
     DateTime? timestamp,
+    bool? isPinned,
   }) {
     return Note(
       id: id ?? this.id,
       title: title ?? this.title,
       content: content ?? this.content,
       timestamp: timestamp ?? this.timestamp,
+      isPinned: isPinned ?? this.isPinned,
     );
   }
 
@@ -31,6 +35,7 @@ class Note {
       'title': title,
       'content': content,
       'timestamp': timestamp.toIso8601String(),
+      'isPinned': isPinned,
     };
   }
 
@@ -41,6 +46,7 @@ class Note {
       content: (map['content'] as String?) ?? '',
       timestamp: DateTime.tryParse((map['timestamp'] as String?) ?? '') ??
           DateTime.now(),
+      isPinned: (map['isPinned'] as bool?) ?? false,
     );
   }
 }

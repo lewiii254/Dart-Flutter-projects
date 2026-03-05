@@ -16,6 +16,7 @@ class NoteProvider extends ChangeNotifier {
 
   List<Note> get notes => List.unmodifiable(_notes);
   int get totalNotes => _notes.length;
+  int get pinnedCount => _notes.where((note) => note.isPinned).length;
 
   Future<void> addNote({required String title, required String content}) async {
     final note = Note(
@@ -45,6 +46,17 @@ class NoteProvider extends ChangeNotifier {
       content: content,
       timestamp: DateTime.now(),
     );
+    notifyListeners();
+    await _saveNotes();
+  }
+
+  Future<void> togglePin(String id) async {
+    final index = _notes.indexWhere((note) => note.id == id);
+    if (index == -1) {
+      return;
+    }
+
+    _notes[index] = _notes[index].copyWith(isPinned: !_notes[index].isPinned);
     notifyListeners();
     await _saveNotes();
   }

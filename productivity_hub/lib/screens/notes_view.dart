@@ -15,6 +15,7 @@ class NotesView extends StatefulWidget {
 
 class _NotesViewState extends State<NotesView> {
   final TextEditingController _searchController = TextEditingController();
+  bool _showPinnedOnly = false;
 
   @override
   void dispose() {
@@ -23,15 +24,35 @@ class _NotesViewState extends State<NotesView> {
   }
 
   List<Note> _filterNotes(List<Note> notes) {
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) {
-      return notes;
+    var result = notes.toList();
+
+    if (_showPinnedOnly) {
+      result = result.where((note) => note.isPinned).toList();
     }
 
-    return notes.where((note) {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      result.sort((a, b) {
+        if (a.isPinned != b.isPinned) {
+          return a.isPinned ? -1 : 1;
+        }
+        return b.timestamp.compareTo(a.timestamp);
+      });
+      return result;
+    }
+
+    result = result.where((note) {
       final haystack = '${note.title} ${note.content}'.toLowerCase();
       return haystack.contains(query);
     }).toList();
+
+    result.sort((a, b) {
+      if (a.isPinned != b.isPinned) {
+        return a.isPinned ? -1 : 1;
+      }
+      return b.timestamp.compareTo(a.timestamp);
+    });
+    return result;
   }
 
   Future<void> _openNoteEditor(BuildContext context, Note note) async {
@@ -67,6 +88,20 @@ class _NotesViewState extends State<NotesView> {
               const SizedBox(height: 14),
               Row(
                 children: [
+                  TextButton.icon(
+                    onPressed: () async {
+                      await context.read<NoteProvider>().togglePin(note.id);
+                      if (sheetContext.mounted) {
+                        Navigator.of(sheetContext).pop();
+                      }
+                    },
+                    icon: Icon(
+                      note.isPinned
+                          ? Icons.push_pin_rounded
+                          : Icons.push_pin_outlined,
+                    ),
+                    label: Text(note.isPinned ? 'Unpin' : 'Pin'),
+                  ),
                   TextButton.icon(
                     onPressed: () async {
                       await context.read<NoteProvider>().removeNote(note.id);
@@ -124,22 +159,42 @@ class _NotesViewState extends State<NotesView> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search notes',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: _searchController.text.isEmpty
-                      ? null
-                      : IconButton(
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                          },
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                ),
-                onChanged: (_) => setState(() {}),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search notes',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: _searchController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      FilterChip(
+                        label: const Text('Pinned only'),
+                        selected: _showPinnedOnly,
+                        onSelected: (_) {
+                          setState(() {
+                            _showPinnedOnly = !_showPinnedOnly;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      Chip(label: Text('Pinned: ${noteProvider.pinnedCount}')),
+                    ],
+                  ),
+                ],
               ),
             ),
             Expanded(

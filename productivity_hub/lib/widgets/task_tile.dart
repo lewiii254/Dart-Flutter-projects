@@ -59,8 +59,9 @@ class TaskTile extends StatelessWidget {
           ),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 Container(
                   padding:
@@ -80,6 +81,35 @@ class TaskTile extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (task.dueDate != null)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: task.isOverdue
+                          ? Theme.of(context)
+                              .colorScheme
+                              .errorContainer
+                              .withValues(alpha: 0.7)
+                          : Theme.of(context)
+                              .colorScheme
+                              .secondaryContainer
+                              .withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      task.isOverdue
+                          ? 'Overdue · ${_formatDueDate(task.dueDate!)}'
+                          : 'Due · ${_formatDueDate(task.dueDate!)}',
+                      style: TextStyle(
+                        color: task.isOverdue
+                            ? Theme.of(context).colorScheme.onErrorContainer
+                            : Theme.of(context)
+                                .colorScheme
+                                .onSecondaryContainer,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -91,5 +121,12 @@ class TaskTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatDueDate(DateTime date) {
+    final localDate = date.toLocal();
+    final month = localDate.month.toString().padLeft(2, '0');
+    final day = localDate.day.toString().padLeft(2, '0');
+    return '$month/$day';
   }
 }
