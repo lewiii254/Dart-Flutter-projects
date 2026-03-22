@@ -7,6 +7,7 @@ class CalculatorButton extends StatefulWidget {
     super.key,
     required this.label,
     required this.onTap,
+    this.onLongPress,
     this.icon,
     this.isAccent = false,
     this.isEquals = false,
@@ -15,6 +16,7 @@ class CalculatorButton extends StatefulWidget {
   final String label;
   final IconData? icon;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final bool isAccent;
   final bool isEquals;
 
@@ -34,6 +36,7 @@ class _CalculatorButtonState extends State<CalculatorButton> {
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
       onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
       child: AnimatedScale(
         duration: const Duration(milliseconds: 120),
         scale: _pressed ? 0.96 : 1,

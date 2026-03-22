@@ -4,6 +4,8 @@
 /// 3) postfix evaluation
 class ExpressionParser {
   static const Set<String> _operators = {'+', '-', '*', '/'};
+  static const Set<String> _parentheses = {'(', ')'};
+  static const String _percent = '%';
 
   double evaluate(String expression) {
     if (expression.trim().isEmpty) {
@@ -16,7 +18,10 @@ class ExpressionParser {
   }
 
   List<String> _tokenize(String expression) {
-    final normalized = expression.replaceAll('×', '*').replaceAll('÷', '/').replaceAll('−', '-');
+    final normalized = expression
+        .replaceAll('×', '*')
+        .replaceAll('÷', '/')
+        .replaceAll('−', '-');
     final tokens = <String>[];
     final buffer = StringBuffer();
 
@@ -35,13 +40,37 @@ class ExpressionParser {
         }
 
         final previous = tokens.isEmpty ? null : tokens.last;
-        final isUnaryMinus = char == '-' && (previous == null || _operators.contains(previous));
+        final isUnaryMinus =
+            char == '-' &&
+            (previous == null ||
+                _operators.contains(previous) ||
+                previous == '(');
 
         if (isUnaryMinus) {
           buffer.write(char);
         } else {
           tokens.add(char);
         }
+        continue;
+      }
+
+      if (_parentheses.contains(char)) {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString());
+          buffer.clear();
+        }
+
+        tokens.add(char);
+        continue;
+      }
+
+      if (char == _percent) {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString());
+          buffer.clear();
+        }
+
+        tokens.add(_percent);
         continue;
       }
 
@@ -56,12 +85,26 @@ class ExpressionParser {
       tokens.add(buffer.toString());
     }
 
-    if (tokens.isEmpty || _operators.contains(tokens.last)) {
+    if (tokens.isEmpty || _operators.contains(tokens.last) || tokens.last == '(') {
       throw const FormatException('Incomplete expression');
     }
 
+    var openParenthesis = 0;
     for (final token in tokens) {
-      if (_operators.contains(token)) {
+      if (_operators.contains(token) || token == _percent) {
+        continue;
+      }
+
+      if (token == '(') {
+        openParenthesis++;
+        continue;
+      }
+
+      if (token == ')') {
+        openParenthesis--;
+        if (openParenthesis < 0) {
+          throw const FormatException('Mismatched parentheses');
+        }
         continue;
       }
 
@@ -69,6 +112,10 @@ class ExpressionParser {
       if (number == null) {
         throw FormatException('Invalid number: $token');
       }
+    }
+
+    if (openParenthesis != 0) {
+      throw const FormatException('Mismatched parentheses');
     }
 
     return tokens;
@@ -79,12 +126,37 @@ class ExpressionParser {
     final operatorStack = <String>[];
 
     for (final token in tokens) {
-      if (!_operators.contains(token)) {
+      if (!_operators.contains(token) && !_parentheses.contains(token) && token != _percent) {
         output.add(token);
         continue;
       }
 
-      while (operatorStack.isNotEmpty && _precedence(operatorStack.last) >= _precedence(token)) {
+      if (token == _percent) {
+        output.add(token);
+        continue;
+      }
+
+      if (token == '(') {
+        operatorStack.add(token);
+        continue;
+      }
+
+      if (token == ')') {
+        while (operatorStack.isNotEmpty && operatorStack.last != '(') {
+          output.add(operatorStack.removeLast());
+        }
+
+        if (operatorStack.isEmpty || operatorStack.last != '(') {
+          throw const FormatException('Mismatched parentheses');
+        }
+
+        operatorStack.removeLast();
+        continue;
+      }
+
+      while (operatorStack.isNotEmpty &&
+          operatorStack.last != '(' &&
+          _precedence(operatorStack.last) >= _precedence(token)) {
         output.add(operatorStack.removeLast());
       }
 
@@ -92,6 +164,9 @@ class ExpressionParser {
     }
 
     while (operatorStack.isNotEmpty) {
+      if (operatorStack.last == '(') {
+        throw const FormatException('Mismatched parentheses');
+      }
       output.add(operatorStack.removeLast());
     }
 
@@ -102,8 +177,18 @@ class ExpressionParser {
     final stack = <double>[];
 
     for (final token in postfix) {
-      if (!_operators.contains(token)) {
+      if (!_operators.contains(token) && token != _percent) {
         stack.add(double.parse(token));
+        continue;
+      }
+
+      if (token == _percent) {
+        if (stack.isEmpty) {
+          throw const FormatException('Malformed expression');
+        }
+
+        final value = stack.removeLast();
+        stack.add(value / 100);
         continue;
       }
 

@@ -5,11 +5,13 @@ class CalculatorDisplay extends StatelessWidget {
     super.key,
     required this.expression,
     required this.result,
+    required this.memoryLabel,
     required this.onSwipeDelete,
   });
 
   final String expression;
   final String result;
+  final String memoryLabel;
   final VoidCallback onSwipeDelete;
 
   @override
@@ -45,6 +47,31 @@ class CalculatorDisplay extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: colors.onSurface.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    memoryLabel,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                Text(
+                  'Swipe to delete',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.onSurface.withValues(alpha: 0.6),
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
             Text(
               expression,
               maxLines: 2,

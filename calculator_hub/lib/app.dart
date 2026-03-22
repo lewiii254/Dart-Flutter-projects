@@ -49,6 +49,12 @@ class CalculatorApp extends StatelessWidget {
       scaffoldBackgroundColor: colorScheme.brightness == Brightness.dark
           ? const Color(0xFF0A0B11)
           : const Color(0xFFF6F7FB),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       textTheme: GoogleFonts.poppinsTextTheme().apply(
         bodyColor: colorScheme.onSurface,
         displayColor: colorScheme.onSurface,
@@ -58,6 +64,20 @@ class CalculatorApp extends StatelessWidget {
         backgroundColor: Colors.transparent,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
+        titleTextStyle: GoogleFonts.poppins(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: colorScheme.onSurface,
+        ),
+      ),
+      iconTheme: IconThemeData(
+        color: colorScheme.onSurface.withValues(alpha: 0.92),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: colorScheme.primary,
+          textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }

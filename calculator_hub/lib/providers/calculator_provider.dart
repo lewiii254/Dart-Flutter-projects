@@ -13,11 +13,13 @@ class CalculatorProvider extends ChangeNotifier {
 
   String _expression = '';
   String _result = '0';
+  double _memoryValue = 0;
   bool _isDarkMode = true;
   final List<CalculationRecord> _history = [];
 
   String get expression => _expression.isEmpty ? '0' : _expression;
   String get result => _result;
+  String get memoryLabel => _memoryValue == 0 ? 'M: empty' : 'M: ${_format(_memoryValue)}';
   bool get isDarkMode => _isDarkMode;
   List<CalculationRecord> get history => List.unmodifiable(_history);
 
@@ -25,6 +27,11 @@ class CalculatorProvider extends ChangeNotifier {
 
   /// Handles numeric, decimal, and operator inputs from the keypad.
   void inputValue(String value) {
+    if (value == '(' || value == ')') {
+      _appendParenthesis(value);
+      return;
+    }
+
     if (value == '.') {
       _appendDecimal();
       return;
@@ -36,6 +43,7 @@ class CalculatorProvider extends ChangeNotifier {
     }
 
     _expression += value;
+    _refreshPreview();
     notifyListeners();
   }
 
@@ -58,9 +66,7 @@ class CalculatorProvider extends ChangeNotifier {
     }
 
     _expression = end >= 0 ? _expression.substring(0, end + 1) : '';
-    if (_expression.isEmpty) {
-      _result = '0';
-    }
+    _refreshPreview();
     notifyListeners();
   }
 
@@ -71,9 +77,77 @@ class CalculatorProvider extends ChangeNotifier {
     }
 
     _expression = _expression.substring(0, _expression.length - 1);
+    _refreshPreview();
+    notifyListeners();
+  }
+
+  void toggleSign() {
     if (_expression.isEmpty) {
-      _result = '0';
+      _expression = '-';
+      notifyListeners();
+      return;
     }
+
+    final start = _lastEntryStart();
+    if (start < 0 || start >= _expression.length) {
+      return;
+    }
+
+    final entry = _expression.substring(start);
+    if (entry.startsWith('-')) {
+      _expression = '${_expression.substring(0, start)}${entry.substring(1)}';
+    } else {
+      _expression = '${_expression.substring(0, start)}-$entry';
+    }
+
+    _refreshPreview();
+    notifyListeners();
+  }
+
+  void applyPercent() {
+    if (_expression.isEmpty) {
+      return;
+    }
+
+    final last = _expression[_expression.length - 1];
+    if (_operators.contains(last) || last == '(' || last == '.') {
+      return;
+    }
+
+    _expression += '%';
+    _refreshPreview();
+    notifyListeners();
+  }
+
+  void memoryAdd() {
+    _memoryValue += _evaluateCurrentOrResult();
+    notifyListeners();
+  }
+
+  void memorySubtract() {
+    _memoryValue -= _evaluateCurrentOrResult();
+    notifyListeners();
+  }
+
+  void memoryRecall() {
+    final recalled = _toExpressionNumber(_memoryValue);
+    if (_expression.isEmpty || _operators.contains(_expression[_expression.length - 1]) || _expression.endsWith('(')) {
+      _expression += recalled;
+    } else {
+      _expression = recalled;
+    }
+
+    _refreshPreview();
+    notifyListeners();
+  }
+
+  void memoryClear() {
+    _memoryValue = 0;
+    notifyListeners();
+  }
+
+  void clearHistory() {
+    _history.clear();
     notifyListeners();
   }
 
@@ -89,14 +163,15 @@ class CalculatorProvider extends ChangeNotifier {
     }
 
     try {
-      final evaluation = _parser.evaluate(_expression);
+      final rawExpression = _expression;
+      final evaluation = _parser.evaluate(_sanitizeExpression(_expression));
       final formatted = _format(evaluation);
       _history.insert(
         0,
-        CalculationRecord(expression: _expression, result: formatted),
+        CalculationRecord(expression: rawExpression, result: formatted),
       );
       _result = formatted;
-      _expression = formatted;
+      _expression = _toExpressionNumber(evaluation);
     } on FormatException catch (error) {
       _result = error.message;
     } catch (_) {
@@ -107,7 +182,7 @@ class CalculatorProvider extends ChangeNotifier {
   }
 
   void useHistory(CalculationRecord record) {
-    _expression = record.result;
+    _expression = _sanitizeExpression(record.expression);
     _result = record.result;
     notifyListeners();
   }
@@ -123,6 +198,7 @@ class CalculatorProvider extends ChangeNotifier {
     } else {
       _expression += '.';
     }
+    _refreshPreview();
     notifyListeners();
   }
 
@@ -130,6 +206,7 @@ class CalculatorProvider extends ChangeNotifier {
     if (_expression.isEmpty) {
       if (operator == '-') {
         _expression = '-';
+        _refreshPreview();
         notifyListeners();
       }
       return;
@@ -143,7 +220,29 @@ class CalculatorProvider extends ChangeNotifier {
       _expression += operator;
     }
 
+    _refreshPreview();
     notifyListeners();
+  }
+
+  void _appendParenthesis(String parenthesis) {
+    if (parenthesis == '(') {
+      if (_expression.isEmpty || _operators.contains(_expression[_expression.length - 1]) || _expression.endsWith('(')) {
+        _expression += '(';
+      } else {
+        _expression += '×(';
+      }
+
+      notifyListeners();
+      return;
+    }
+
+    final open = '('.allMatches(_expression).length;
+    final close = ')'.allMatches(_expression).length;
+    if (open > close && _expression.isNotEmpty && !_operators.contains(_expression[_expression.length - 1]) && !_expression.endsWith('(')) {
+      _expression += ')';
+      _refreshPreview();
+      notifyListeners();
+    }
   }
 
   String _currentEntry() {
@@ -151,8 +250,65 @@ class CalculatorProvider extends ChangeNotifier {
       return '';
     }
 
-    final pieces = _expression.split(RegExp(r'[+\-×÷]'));
+    final pieces = _expression.split(RegExp(r'[+\-×÷()]'));
     return pieces.isEmpty ? '' : pieces.last;
+  }
+
+  int _lastEntryStart() {
+    for (var index = _expression.length - 1; index >= 0; index--) {
+      final char = _expression[index];
+      if (_operators.contains(char) || char == '(' || char == ')') {
+        return index + 1;
+      }
+    }
+
+    return 0;
+  }
+
+  void _refreshPreview() {
+    if (_expression.isEmpty) {
+      _result = '0';
+      return;
+    }
+
+    final last = _expression[_expression.length - 1];
+    if (_operators.contains(last) || last == '(' || last == '.') {
+      return;
+    }
+
+    try {
+      final value = _parser.evaluate(_sanitizeExpression(_expression));
+      _result = _format(value);
+    } catch (_) {
+      // Keep the previous result until expression becomes valid again.
+    }
+  }
+
+  double _evaluateCurrentOrResult() {
+    try {
+      if (_expression.isNotEmpty) {
+        return _parser.evaluate(_sanitizeExpression(_expression));
+      }
+      return double.parse(_sanitizeExpression(_result));
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  String _sanitizeExpression(String value) {
+    return value
+        .replaceAll(',', '')
+        .replaceAll('×', '*')
+        .replaceAll('÷', '/')
+        .replaceAll('−', '-');
+  }
+
+  String _toExpressionNumber(double value) {
+    if (value == value.toInt()) {
+      return value.toInt().toString();
+    }
+
+    return value.toStringAsPrecision(12).replaceFirst(RegExp(r'\.?0+$'), '');
   }
 
   String _format(double value) {
